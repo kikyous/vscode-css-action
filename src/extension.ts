@@ -6,22 +6,22 @@ import * as vscode from "vscode";
 import { readFileSync } from "fs";
 import { join } from "path";
 
-let colorMapper: { [colorStr: string]: string[] } = {};
+let colorMapper: { [colorStr: string]: Set<string> } = {};
 let additionActionSearchRegex: string | undefined;
 let additionActionReplaceTargets: string[] | undefined;
 
 function getColorMapper(path: string) {
   const text = readFileSync(path, { encoding: "utf8" });
-  const matches = text.match(/\$[\w-]+:\s*#[\w]{3,6}\b/gim);
-  const colorMapper: { [colorStr: string]: string[] } = {};
+  const matches = text.match(/\$[\w-]+:\s*#([0-9a-f]{3})+\b/gi);
+  const colorMapper: { [colorStr: string]: Set<string> } = {};
   if (matches) {
     for (let match of matches) {
       let [colorVar, colorStr] = match.split(/\s*:\s*/);
       colorStr = colorStr.toLowerCase();
       if (!colorMapper[colorStr]) {
-        colorMapper[colorStr] = [];
+        colorMapper[colorStr] = new Set();
       }
-      colorMapper[colorStr].push(colorVar);
+      colorMapper[colorStr].add(colorVar);
     }
   }
   return colorMapper;
@@ -29,40 +29,49 @@ function getColorMapper(path: string) {
 
 export function activate(context: vscode.ExtensionContext) {
   const workbenchConfig = vscode.workspace.getConfiguration("cssAction");
-  const path = workbenchConfig.get<string>("colorVariablesFile");
-  additionActionSearchRegex = workbenchConfig.get<string>("additionActionSearchRegex");
-  additionActionReplaceTargets = workbenchConfig.get<string[]>("additionActionReplaceTargets");
-  
-  if (path) {
-	const fullPath = join(vscode.workspace.rootPath || "", path);
-	colorMapper = getColorMapper(fullPath);
-  
-	context.subscriptions.push(
-	  vscode.languages.registerCodeActionsProvider(
-		[{ language: "scss" }, { language: "less" }, { language: "vue" }],
-		new ColorVarReplacer(),
-		{
-		  providedCodeActionKinds: ColorVarReplacer.providedCodeActionKinds,
-		}
-	  )
-	);
+  const colorVariablesFilePath = workbenchConfig.get<string>(
+    "colorVariablesFile"
+  );
+  additionActionSearchRegex = workbenchConfig.get<string>(
+    "additionActionSearchRegex"
+  );
+  additionActionReplaceTargets = workbenchConfig.get<string[]>(
+    "additionActionReplaceTargets"
+  );
+
+  if (colorVariablesFilePath) {
+    const fullPath = join(
+      vscode.workspace.rootPath || "",
+      colorVariablesFilePath
+    );
+    colorMapper = getColorMapper(fullPath);
+
+    context.subscriptions.push(
+      vscode.languages.registerCodeActionsProvider(
+        [{ language: "scss" }, { language: "less" }, { language: "vue" }],
+        new ColorVarReplacer(),
+        {
+          providedCodeActionKinds: ColorVarReplacer.providedCodeActionKinds,
+        }
+      )
+    );
   }
 
   if (additionActionSearchRegex && additionActionReplaceTargets) {
-	context.subscriptions.push(
-		vscode.languages.registerCodeActionsProvider(
-		  [{ language: "scss" }, { language: "less" }, { language: "vue" }],
-		  new RegexReplacer(),
-		  {
-			providedCodeActionKinds: RegexReplacer.providedCodeActionKinds,
-		  }
-		)
-	  );
+    context.subscriptions.push(
+      vscode.languages.registerCodeActionsProvider(
+        [{ language: "scss" }, { language: "less" }, { language: "vue" }],
+        new RegexReplacer(),
+        {
+          providedCodeActionKinds: RegexReplacer.providedCodeActionKinds,
+        }
+      )
+    );
   }
 }
 
 export class RegexReplacer implements vscode.CodeActionProvider {
-  public regex = new RegExp(additionActionSearchRegex!, 'i');
+  public regex = new RegExp(additionActionSearchRegex!, "i");
 
   public static readonly providedCodeActionKinds = [
     vscode.CodeActionKind.QuickFix,
@@ -86,9 +95,9 @@ export class RegexReplacer implements vscode.CodeActionProvider {
 
     const targetTexts = this.getReplaceTargets(originText);
 
-    const fixes = targetTexts.map((targetText) => {
-      return this.createFix(document, originRange, targetText, originText);
-    });
+    const fixes = targetTexts.map((targetText) =>
+      this.createFix(document, originRange, targetText, originText)
+    );
 
     if (fixes.length) {
       fixes[0].isPreferred = true;
@@ -98,9 +107,9 @@ export class RegexReplacer implements vscode.CodeActionProvider {
   }
 
   public getReplaceTargets(originText: string): string[] {
-	return additionActionReplaceTargets?.map((target)=>{
-		return originText.replace(this.regex, target)
-	}) || []
+    return additionActionReplaceTargets!.map((target) =>
+      originText.replace(this.regex, target)
+    );
   }
 
   private isMatchRegex(
@@ -130,12 +139,12 @@ export class RegexReplacer implements vscode.CodeActionProvider {
 }
 
 /**
- * Provides code actions for converting #ffffff to a color var.
+ * Provides code actions for converting hex color string to a color var.
  */
 export class ColorVarReplacer extends RegexReplacer {
-  public regex = /#\w{3,6}\b/;
+  public regex = /#([0-9a-f]{3})+\b/i;
 
   public getReplaceTargets(originText: string): string[] {
-	return colorMapper[originText.toLowerCase()]
+    return Array.from(colorMapper[originText.toLowerCase()]);
   }
 }
