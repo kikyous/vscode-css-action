@@ -1,8 +1,11 @@
 # Css Code Action
 
-A vscode extension help replace hex css string to color variable defined in (scss/less) file.
+A vscode extension help editing scss/less file with color replace and px convert.
 
 ## Color Replace
+
+> color replace help replace hex css string to color variable defined in (scss/less) file.
+
 ```json
 {
   "cssAction.colorVariablesFile": "src/style/variables.scss"
@@ -11,15 +14,16 @@ A vscode extension help replace hex css string to color variable defined in (scs
 
 ![color replace action](https://tva1.sinaimg.cn/large/0081Kckwly1gld7ygo47aj319h0u07b3.jpg)
 
-## Addition Action
+## Px convert
 
-> Addition action give you a way to search a regex in current line and replace it something you want via quik fix. 
+> px convert help convert px to sccc/less func or auto calc based on root font size. 
 
 ```json
 {
-  "cssAction.additionActionSearchRegex": "(\\d+px\\s*)+(?![^(]*\\))",
-  "cssAction.additionActionReplaceTargets": ["px2rem($&)", "px2rem2($&)"]
+  "cssAction.rootFontSize": 16,
+  "cssAction.pxSearchRegex": "(\\d+px\\s*)+(?![^(]*\\))",
+  "cssAction.pxReplaceOptions": ["px2rem($&)", "px2rem2($&)", "_AUTO_CALC_"]
 }
 ```
 
-![addition action](https://tva1.sinaimg.cn/large/0081Kckwly1gld7vszse6j319z0u00x4.jpg)
+![addition action](https://tva1.sinaimg.cn/large/0081Kckwly1gldfsn0l21j317w0u0wjn.jpg)

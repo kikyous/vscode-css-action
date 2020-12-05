@@ -6,9 +6,11 @@ import * as vscode from "vscode";
 import { readFileSync } from "fs";
 import { join } from "path";
 
+const autoCalcPlaceholder = "_AUTO_CALC_";
 let colorMapper: { [colorStr: string]: Set<string> } = {};
-let additionActionSearchRegex: string | undefined;
-let additionActionReplaceTargets: string[] | undefined;
+let pxSearchRegex: string | undefined;
+let pxReplaceOptions: string[] | undefined;
+let rootFontSize: number;
 
 function getColorMapper(path: string) {
   const text = readFileSync(path, { encoding: "utf8" });
@@ -32,12 +34,9 @@ export function activate(context: vscode.ExtensionContext) {
   const colorVariablesFilePath = workbenchConfig.get<string>(
     "colorVariablesFile"
   );
-  additionActionSearchRegex = workbenchConfig.get<string>(
-    "additionActionSearchRegex"
-  );
-  additionActionReplaceTargets = workbenchConfig.get<string[]>(
-    "additionActionReplaceTargets"
-  );
+  pxSearchRegex = workbenchConfig.get<string>("pxSearchRegex");
+  pxReplaceOptions = workbenchConfig.get<string[]>("pxReplaceOptions");
+  rootFontSize = workbenchConfig.get<number>("rootFontSize")!;
 
   if (colorVariablesFilePath) {
     const fullPath = join(
@@ -57,21 +56,24 @@ export function activate(context: vscode.ExtensionContext) {
     );
   }
 
-  if (additionActionSearchRegex && additionActionReplaceTargets) {
+  if (pxSearchRegex) {
     context.subscriptions.push(
       vscode.languages.registerCodeActionsProvider(
         [{ language: "scss" }, { language: "less" }, { language: "vue" }],
-        new RegexReplacer(),
+        new PxReplacer(),
         {
-          providedCodeActionKinds: RegexReplacer.providedCodeActionKinds,
+          providedCodeActionKinds: PxReplacer.providedCodeActionKinds,
         }
       )
     );
   }
 }
 
-export class RegexReplacer implements vscode.CodeActionProvider {
-  public regex = new RegExp(additionActionSearchRegex!, "i");
+/**
+ * Provides code actions for converting px.
+ */
+export class PxReplacer implements vscode.CodeActionProvider {
+  public regex = new RegExp(pxSearchRegex!, "i");
 
   public static readonly providedCodeActionKinds = [
     vscode.CodeActionKind.QuickFix,
@@ -107,9 +109,22 @@ export class RegexReplacer implements vscode.CodeActionProvider {
   }
 
   public getReplaceTargets(originText: string): string[] {
-    return additionActionReplaceTargets!.map((target) =>
-      originText.replace(this.regex, target)
-    );
+    const replaces = pxReplaceOptions!.map((target) => {
+      if (target === autoCalcPlaceholder) {
+        return originText
+          .trim()
+          .split(/\s+/)
+          .map((item) => {
+            const result = parseInt(item) / rootFontSize;
+            const resultStr = result.toFixed(4).replace(/0+$/, "");
+            return `${resultStr}rem`;
+          })
+          .join(" ");
+      } else {
+        return originText.replace(this.regex, target);
+      }
+    });
+    return replaces;
   }
 
   private isMatchRegex(
@@ -141,7 +156,7 @@ export class RegexReplacer implements vscode.CodeActionProvider {
 /**
  * Provides code actions for converting hex color string to a color var.
  */
-export class ColorVarReplacer extends RegexReplacer {
+export class ColorVarReplacer extends PxReplacer {
   public regex = /#([0-9a-f]{3})+\b/i;
 
   public getReplaceTargets(originText: string): string[] {

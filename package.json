@@ -2,7 +2,8 @@
 	"name": "css-action",
 	"private": false,
 	"displayName": "Code Actions For Css",
-	"version": "0.1.0",
+	"description": "A vscode extension help editing scss/less file with color replace and px convert.",
+	"version": "0.2.0",
 	"publisher": "kikyous",
 	"repository": {
 		"type": "git",
@@ -25,13 +26,20 @@
 			  "type": "string",
 			  "description": "color variables file path."
 			},
-			"cssAction.additionActionSearchRegex": {
+			"cssAction.pxSearchRegex": {
 				"type": "string",
-				"description": "addition action search regex, escape it at https://www.freeformatter.com/javascript-escape.html"
+				"description": "px search regex.",
+				"default": "(\\d+px\\s*)+(?![^(]*\\))"
 			},
-			"cssAction.additionActionReplaceTargets": {
+			"cssAction.rootFontSize": {
+				"type": "integer",
+				"description": "root font size for rem calc.",
+				"default": 16
+			  },
+			"cssAction.pxReplaceOptions": {
 				"type": "array",
-				"description": "addition action replace targets."
+				"description": "px replace options, '_AUTO_CALC_' for auto calc.",
+				"default": ["px2rem($&)", "_AUTO_CALC_"]
 			}
 		  }
 		}
