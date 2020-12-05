@@ -5,7 +5,10 @@
 import * as vscode from "vscode";
 import { readFileSync } from "fs";
 import { join } from "path";
+
 let colorMapper: { [colorStr: string]: string[] } = {};
+let additionActionSearchRegex: string | undefined;
+let additionActionReplaceTargets: string[] | undefined;
 
 function getColorMapper(path: string) {
   const text = readFileSync(path, { encoding: "utf8" });
@@ -27,27 +30,40 @@ function getColorMapper(path: string) {
 export function activate(context: vscode.ExtensionContext) {
   const workbenchConfig = vscode.workspace.getConfiguration("cssAction");
   const path = workbenchConfig.get<string>("colorVariablesFile");
-  if (!path) {
-    return;
+  additionActionSearchRegex = workbenchConfig.get<string>("additionActionSearchRegex");
+  additionActionReplaceTargets = workbenchConfig.get<string[]>("additionActionReplaceTargets");
+  
+  if (path) {
+	const fullPath = join(vscode.workspace.rootPath || "", path);
+	colorMapper = getColorMapper(fullPath);
+  
+	context.subscriptions.push(
+	  vscode.languages.registerCodeActionsProvider(
+		[{ language: "scss" }, { language: "less" }, { language: "vue" }],
+		new ColorVarReplacer(),
+		{
+		  providedCodeActionKinds: ColorVarReplacer.providedCodeActionKinds,
+		}
+	  )
+	);
   }
-  const fullPath = join(vscode.workspace.rootPath || "", path);
-  colorMapper = getColorMapper(fullPath);
 
-  context.subscriptions.push(
-    vscode.languages.registerCodeActionsProvider(
-      [{ language: "scss" }, { language: "vue" }],
-      new ColorVarReplacer(),
-      {
-        providedCodeActionKinds: ColorVarReplacer.providedCodeActionKinds,
-      }
-    )
-  );
+  if (additionActionSearchRegex && additionActionReplaceTargets) {
+	context.subscriptions.push(
+		vscode.languages.registerCodeActionsProvider(
+		  [{ language: "scss" }, { language: "less" }, { language: "vue" }],
+		  new RegexReplacer(),
+		  {
+			providedCodeActionKinds: RegexReplacer.providedCodeActionKinds,
+		  }
+		)
+	  );
+  }
 }
 
-/**
- * Provides code actions for converting #ffffff to a color var.
- */
-export class ColorVarReplacer implements vscode.CodeActionProvider {
+export class RegexReplacer implements vscode.CodeActionProvider {
+  public regex = new RegExp(additionActionSearchRegex!, 'i');
+
   public static readonly providedCodeActionKinds = [
     vscode.CodeActionKind.QuickFix,
   ];
@@ -56,22 +72,22 @@ export class ColorVarReplacer implements vscode.CodeActionProvider {
     document: vscode.TextDocument,
     range: vscode.Range
   ): vscode.CodeAction[] | undefined {
-    const [matchResult, line] = this.isContainColor(document, range);
+    const [matchResult, line] = this.isMatchRegex(document, range);
     if (!matchResult) {
       return;
     }
     const lineRange = line.range;
-    const originColor = matchResult[0];
+    const originText = matchResult[0];
 
-    const colorRange = new vscode.Range(
+    const originRange = new vscode.Range(
       lineRange.start.translate(0, matchResult.index),
-      lineRange.start.translate(0, matchResult.index + originColor.length)
+      lineRange.start.translate(0, matchResult.index + originText.length)
     );
 
-    const colorVars = colorMapper[originColor.toLowerCase()];
+    const targetTexts = this.getReplaceTargets(originText);
 
-    const fixes = colorVars.map((colorVar) => {
-      return this.createFix(document, colorRange, colorVar, originColor);
+    const fixes = targetTexts.map((targetText) => {
+      return this.createFix(document, originRange, targetText, originText);
     });
 
     if (fixes.length) {
@@ -81,29 +97,45 @@ export class ColorVarReplacer implements vscode.CodeActionProvider {
     return fixes;
   }
 
-  private isContainColor(
+  public getReplaceTargets(originText: string): string[] {
+	return additionActionReplaceTargets?.map((target)=>{
+		return originText.replace(this.regex, target)
+	}) || []
+  }
+
+  private isMatchRegex(
     document: vscode.TextDocument,
     range: vscode.Range
   ): [RegExpExecArray | null, vscode.TextLine] {
     const start = range.start;
     const line = document.lineAt(start.line);
-    const regex = /#\w{3,6}\b/;
-    const matchResult = regex.exec(line.text);
+    const matchResult = this.regex.exec(line.text);
     return [matchResult, line];
   }
 
   private createFix(
     document: vscode.TextDocument,
     range: vscode.Range,
-	colorVar: string,
-	originColor: string
+    targetText: string,
+    originText: string
   ): vscode.CodeAction {
     const fix = new vscode.CodeAction(
-      `Replace ${originColor} with ${colorVar}`,
+      `Replace [ ${originText} ] with ${targetText}`,
       vscode.CodeActionKind.QuickFix
     );
     fix.edit = new vscode.WorkspaceEdit();
-    fix.edit.replace(document.uri, range, colorVar);
+    fix.edit.replace(document.uri, range, targetText);
     return fix;
+  }
+}
+
+/**
+ * Provides code actions for converting #ffffff to a color var.
+ */
+export class ColorVarReplacer extends RegexReplacer {
+  public regex = /#\w{3,6}\b/;
+
+  public getReplaceTargets(originText: string): string[] {
+	return colorMapper[originText.toLowerCase()]
   }
 }

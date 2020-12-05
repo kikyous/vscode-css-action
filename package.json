@@ -2,7 +2,7 @@
 	"name": "css-action",
 	"private": false,
 	"displayName": "Code Actions For Css",
-	"version": "0.0.1",
+	"version": "0.1.0",
 	"publisher": "kikyous",
 	"repository": {
 		"type": "git",
@@ -24,12 +24,20 @@
 			"cssAction.colorVariablesFile": {
 			  "type": "string",
 			  "description": "color variables file path."
+			},
+			"cssAction.additionActionSearchRegex": {
+				"type": "string",
+				"description": "addition action search regex, escape it at https://www.freeformatter.com/javascript-escape.html"
+			},
+			"cssAction.additionActionReplaceTargets": {
+				"type": "array",
+				"description": "addition action replace targets."
 			}
 		  }
 		}
 	  },
 	"activationEvents": [
-		"onLanguage:scss", "onLanguage:vue"
+		"onLanguage:scss", "onLanguage:less" , "onLanguage:vue"
 	],
 	"main": "./out/extension.js",
 	"scripts": {
