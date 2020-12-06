@@ -8,26 +8,46 @@ import { join } from "path";
 
 const autoCalcPlaceholder = "_AUTO_CALC_";
 let colorVariablesFilePath: string | undefined;
-let colorMapper = new Map<string, Set<string>>();
+let variableMapper = new Map<string, Set<string>>();
 let pxSearchRegex: string;
 let pxReplaceOptions: string[];
 let rootFontSize: number;
 
-function getColorMapper(path: string) {
+function normalizeSizeValue(str: string) {
+  const sizeReg = /\b\d+(px|rem|em)\b/g;
+  const result = str.toLowerCase().match(sizeReg);
+  if (result) {
+    return result.join(" ");
+  } else {
+    return null;
+  }
+}
+
+function normalizeColorValue(str: string) {
+  const colorReg = /#[0-9a-f]{3,8}\b/;
+  const result = str.toLowerCase().match(colorReg);
+  if (result) {
+    return result[0];
+  } else {
+    return null;
+  }
+}
+function getVariablesMapper(path: string) {
   const text = readFileSync(path, { encoding: "utf8" });
-  const matches = text.match(/[$@][\w-]+\s*:\s*#([0-9a-f]{3})+\b/gi);
-  const colorMapper = new Map<string, Set<string>>()
+  const matches = text.match(/[$@][\w-]+\s*:\s*.+/gi);
+  const varMapper = new Map<string, Set<string>>();
   if (matches) {
     for (let match of matches) {
-      let [colorVar, colorStr] = match.split(/\s*:\s*/);
-      colorStr = colorStr.toLowerCase();
-      if (!colorMapper.get(colorStr)) {
-        colorMapper.set(colorStr, new Set());
+      let [varName, varValue] = match.split(/\s*:\s*/);
+      varValue =
+        normalizeSizeValue(varValue) || normalizeColorValue(varValue) || "";
+      if (!varMapper.get(varValue)) {
+        varMapper.set(varValue, new Set());
       }
-      colorMapper.get(colorStr)!.add(colorVar);
+      varMapper.get(varValue)!.add(varName);
     }
   }
-  return colorMapper;
+  return varMapper;
 }
 
 function init(context: vscode.ExtensionContext) {
@@ -44,7 +64,7 @@ function init(context: vscode.ExtensionContext) {
       vscode.workspace.rootPath || "",
       colorVariablesFilePath
     );
-    colorMapper = getColorMapper(fullPath);
+    variableMapper = getVariablesMapper(fullPath);
 
     context.subscriptions.push(
       vscode.languages.registerCodeActionsProvider(
@@ -94,7 +114,7 @@ export class PxReplacer implements vscode.CodeActionProvider {
       return;
     }
     const lineRange = line.range;
-    const originText = matchResult[0];
+    const originText = matchResult[0].trim();
 
     const originRange = new vscode.Range(
       lineRange.start.translate(0, matchResult.index),
@@ -115,21 +135,30 @@ export class PxReplacer implements vscode.CodeActionProvider {
   }
 
   public getReplaceTargets(originText: string): string[] {
+    const normalizedOrigin = normalizeSizeValue(originText) || "";
     const replaces = pxReplaceOptions!.map((target) => {
       if (target === autoCalcPlaceholder) {
-        return originText
-          .trim()
+        return normalizedOrigin
           .split(/\s+/)
           .map((item) => {
-            const result = parseInt(item) / rootFontSize;
-            const resultStr = result.toFixed(4).replace(/\.?0+$/, "");
-            return `${resultStr}rem`;
+            const unit = item.replace(/\d+/, "");
+            if (unit === "px") {
+              const result = parseInt(item) / rootFontSize;
+              const resultStr = result.toFixed(4).replace(/\.?0+$/, "");
+              return `${resultStr}rem`;
+            } else {
+              return item;
+            }
           })
           .join(" ");
       } else {
         return originText.replace(this.regex, target);
       }
     });
+    const varNameFromMapper = variableMapper.get(normalizedOrigin) || new Set();
+    for (let varName of varNameFromMapper) {
+      replaces.push(varName);
+    }
     return replaces;
   }
 
@@ -165,6 +194,6 @@ export class ColorVarReplacer extends PxReplacer {
   public regex = /#([0-9a-f]{3})+\b/i;
 
   public getReplaceTargets(originText: string): string[] {
-    return Array.from(colorMapper.get(originText.toLowerCase()) || []);
+    return Array.from(variableMapper.get(originText.toLowerCase()) || []);
   }
 }

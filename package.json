@@ -29,7 +29,7 @@
 			"cssAction.pxSearchRegex": {
 				"type": "string",
 				"description": "px search regex.",
-				"default": "(\\d+px\\s*)+(?![^(]*\\))"
+				"default": "(\\d+(px|rem|em)\\s*)+(?![^(]*\\))"
 			},
 			"cssAction.rootFontSize": {
 				"type": "integer",
