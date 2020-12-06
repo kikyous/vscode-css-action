@@ -116,7 +116,7 @@ export class PxReplacer implements vscode.CodeActionProvider {
           .split(/\s+/)
           .map((item) => {
             const result = parseInt(item) / rootFontSize;
-            const resultStr = result.toFixed(4).replace(/0+$/, "");
+            const resultStr = result.toFixed(4).replace(/\.?0+$/, "");
             return `${resultStr}rem`;
           })
           .join(" ");
