@@ -3,7 +3,7 @@
 	"private": false,
 	"displayName": "Code Actions For Css",
 	"description": "A vscode extension help editing scss/less file with color replace and px convert.",
-	"version": "0.2.3",
+	"version": "0.3.0",
 	"publisher": "kikyous",
 	"repository": {
 		"type": "git",
