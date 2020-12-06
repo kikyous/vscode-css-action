@@ -7,9 +7,10 @@ import { readFileSync } from "fs";
 import { join } from "path";
 
 const autoCalcPlaceholder = "_AUTO_CALC_";
+let colorVariablesFilePath: string | undefined;
 let colorMapper: { [colorStr: string]: Set<string> } = {};
-let pxSearchRegex: string | undefined;
-let pxReplaceOptions: string[] | undefined;
+let pxSearchRegex: string;
+let pxReplaceOptions: string[];
 let rootFontSize: number;
 
 function getColorMapper(path: string) {
@@ -29,14 +30,14 @@ function getColorMapper(path: string) {
   return colorMapper;
 }
 
-export function activate(context: vscode.ExtensionContext) {
+function init(context: vscode.ExtensionContext) {
   const workbenchConfig = vscode.workspace.getConfiguration("cssAction");
-  const colorVariablesFilePath = workbenchConfig.get<string>(
-    "colorVariablesFile"
-  );
-  pxSearchRegex = workbenchConfig.get<string>("pxSearchRegex");
-  pxReplaceOptions = workbenchConfig.get<string[]>("pxReplaceOptions");
+  colorVariablesFilePath = workbenchConfig.get<string>("colorVariablesFile");
+  pxSearchRegex = workbenchConfig.get<string>("pxSearchRegex")!;
+  pxReplaceOptions = workbenchConfig.get<string[]>("pxReplaceOptions")!;
   rootFontSize = workbenchConfig.get<number>("rootFontSize")!;
+
+  context.subscriptions.forEach((s) => s.dispose());
 
   if (colorVariablesFilePath) {
     const fullPath = join(
@@ -67,6 +68,11 @@ export function activate(context: vscode.ExtensionContext) {
       )
     );
   }
+}
+
+export function activate(context: vscode.ExtensionContext) {
+  init(context);
+  vscode.workspace.onDidChangeConfiguration(() => init(context));
 }
 
 /**
