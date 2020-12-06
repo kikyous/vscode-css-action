@@ -8,7 +8,7 @@ import { join } from "path";
 
 const autoCalcPlaceholder = "_AUTO_CALC_";
 let colorVariablesFilePath: string | undefined;
-let colorMapper: { [colorStr: string]: Set<string> } = {};
+let colorMapper = new Map<string, Set<string>>();
 let pxSearchRegex: string;
 let pxReplaceOptions: string[];
 let rootFontSize: number;
@@ -16,15 +16,15 @@ let rootFontSize: number;
 function getColorMapper(path: string) {
   const text = readFileSync(path, { encoding: "utf8" });
   const matches = text.match(/[$@][\w-]+\s*:\s*#([0-9a-f]{3})+\b/gi);
-  const colorMapper: { [colorStr: string]: Set<string> } = {};
+  const colorMapper = new Map<string, Set<string>>()
   if (matches) {
     for (let match of matches) {
       let [colorVar, colorStr] = match.split(/\s*:\s*/);
       colorStr = colorStr.toLowerCase();
-      if (!colorMapper[colorStr]) {
-        colorMapper[colorStr] = new Set();
+      if (!colorMapper.get(colorStr)) {
+        colorMapper.set(colorStr, new Set());
       }
-      colorMapper[colorStr].add(colorVar);
+      colorMapper.get(colorStr)!.add(colorVar);
     }
   }
   return colorMapper;
@@ -137,8 +137,7 @@ export class PxReplacer implements vscode.CodeActionProvider {
     document: vscode.TextDocument,
     range: vscode.Range
   ): [RegExpExecArray | null, vscode.TextLine] {
-    const start = range.start;
-    const line = document.lineAt(start.line);
+    const line = document.lineAt(range.start);
     const matchResult = this.regex.exec(line.text);
     return [matchResult, line];
   }
@@ -166,6 +165,6 @@ export class ColorVarReplacer extends PxReplacer {
   public regex = /#([0-9a-f]{3})+\b/i;
 
   public getReplaceTargets(originText: string): string[] {
-    return Array.from(colorMapper[originText.toLowerCase()]);
+    return Array.from(colorMapper.get(originText.toLowerCase()) || []);
   }
 }
