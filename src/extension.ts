@@ -15,7 +15,7 @@ let rootFontSize: number;
 
 function getColorMapper(path: string) {
   const text = readFileSync(path, { encoding: "utf8" });
-  const matches = text.match(/\$[\w-]+:\s*#([0-9a-f]{3})+\b/gi);
+  const matches = text.match(/[$@][\w-]+\s*:\s*#([0-9a-f]{3})+\b/gi);
   const colorMapper: { [colorStr: string]: Set<string> } = {};
   if (matches) {
     for (let match of matches) {
