@@ -1,12 +1,11 @@
-/*---------------------------------------------------------
- * Copyright (C) Microsoft Corporation. All rights reserved.
- *--------------------------------------------------------*/
-
 import * as vscode from "vscode";
 import { readFileSync } from "fs";
 import { join } from "path";
 
-const autoCalcPlaceholder = "_AUTO_CALC_";
+enum SizeReplaceOption {
+  autoCalc = "_AUTO_CALC_",
+  varReplace = "_VAR_REPLACE_",
+}
 let colorVariablesFilePath: string | undefined;
 let variableMapper = new Map<string, Set<string>>();
 let pxSearchRegex: string;
@@ -64,11 +63,12 @@ function init(context: vscode.ExtensionContext) {
       vscode.workspace.rootPath || "",
       colorVariablesFilePath
     );
+
     variableMapper = getVariablesMapper(fullPath);
 
     context.subscriptions.push(
       vscode.languages.registerCodeActionsProvider(
-        [{ language: "scss" }, { language: "less" }, { language: "vue" }],
+        ColorVarReplacer.documentSelectors,
         new ColorVarReplacer(),
         {
           providedCodeActionKinds: ColorVarReplacer.providedCodeActionKinds,
@@ -80,7 +80,7 @@ function init(context: vscode.ExtensionContext) {
   if (pxSearchRegex) {
     context.subscriptions.push(
       vscode.languages.registerCodeActionsProvider(
-        [{ language: "scss" }, { language: "less" }, { language: "vue" }],
+        PxReplacer.documentSelectors,
         new PxReplacer(),
         {
           providedCodeActionKinds: PxReplacer.providedCodeActionKinds,
@@ -95,11 +95,14 @@ export function activate(context: vscode.ExtensionContext) {
   vscode.workspace.onDidChangeConfiguration(() => init(context));
 }
 
-/**
- * Provides code actions for converting px.
- */
-export class PxReplacer implements vscode.CodeActionProvider {
-  public regex = new RegExp(pxSearchRegex!, "i");
+abstract class RegexReplacer implements vscode.CodeActionProvider {
+  public abstract regex: RegExp;
+
+  public static documentSelectors = [
+    { language: "scss" },
+    { language: "less" },
+    { language: "vue" },
+  ];
 
   public static readonly providedCodeActionKinds = [
     vscode.CodeActionKind.QuickFix,
@@ -134,33 +137,7 @@ export class PxReplacer implements vscode.CodeActionProvider {
     return fixes;
   }
 
-  public getReplaceTargets(originText: string): string[] {
-    const normalizedOrigin = normalizeSizeValue(originText) || "";
-    const replaces = pxReplaceOptions!.map((target) => {
-      if (target === autoCalcPlaceholder) {
-        return normalizedOrigin
-          .split(/\s+/)
-          .map((item) => {
-            const unit = item.replace(/\d+/, "");
-            if (unit === "px") {
-              const result = parseInt(item) / rootFontSize;
-              const resultStr = result.toFixed(4).replace(/\.?0+$/, "");
-              return `${resultStr}rem`;
-            } else {
-              return item;
-            }
-          })
-          .join(" ");
-      } else {
-        return originText.replace(this.regex, target);
-      }
-    });
-    const varNameFromMapper = variableMapper.get(normalizedOrigin) || new Set();
-    for (let varName of varNameFromMapper) {
-      replaces.push(varName);
-    }
-    return replaces;
-  }
+  public abstract getReplaceTargets(originText: string): string[];
 
   private isMatchRegex(
     document: vscode.TextDocument,
@@ -188,10 +165,52 @@ export class PxReplacer implements vscode.CodeActionProvider {
 }
 
 /**
+ * Provides code actions for converting px.
+ */
+class PxReplacer extends RegexReplacer {
+  public regex = new RegExp(pxSearchRegex!, "i");
+
+  private calcRem(originText: string): string {
+    return originText
+      .split(/\s+/)
+      .map((item) => {
+        const unit = item.replace(/\d+/, "");
+        if (unit === "px") {
+          const result = parseInt(item) / rootFontSize;
+          const resultStr = result.toFixed(4).replace(/\.?0+$/, "");
+          return `${resultStr}rem`;
+        } else {
+          return item;
+        }
+      })
+      .join(" ");
+  }
+
+  public getReplaceTargets(originText: string): string[] {
+    const normalizedOrigin = normalizeSizeValue(originText) || "";
+    const replaces: string[] = [];
+    pxReplaceOptions!.forEach((target) => {
+      if (target === SizeReplaceOption.autoCalc) {
+        replaces.push(this.calcRem(normalizedOrigin));
+      } else if (target === SizeReplaceOption.varReplace) {
+        const varNameFromMapper =
+          variableMapper.get(normalizedOrigin) || new Set();
+        for (let varName of varNameFromMapper) {
+          replaces.push(varName);
+        }
+      } else {
+        replaces.push(originText.replace(this.regex, target));
+      }
+    });
+    return replaces;
+  }
+}
+
+/**
  * Provides code actions for converting hex color string to a color var.
  */
-export class ColorVarReplacer extends PxReplacer {
-  public regex = /#([0-9a-f]{3})+\b/i;
+class ColorVarReplacer extends RegexReplacer {
+  public regex = /#[0-9a-f]{3,8}\b/i;
 
   public getReplaceTargets(originText: string): string[] {
     return Array.from(variableMapper.get(originText.toLowerCase()) || []);
