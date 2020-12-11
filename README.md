@@ -21,7 +21,7 @@ A vscode extension help editing scss/less file with color replace and px convert
 ```json
 {
   "cssAction.rootFontSize": 16,
-  "cssAction.pxReplaceOptions": ["px2rem($&)", "px2rem2($&)", "_AUTO_CALC_"]
+  "cssAction.pxReplaceOptions": ["px2rem($&)", "_AUTO_CALC_", "_VAR_REPLACE_"]
 }
 ```
 

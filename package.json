@@ -38,6 +38,9 @@
         },
         "cssAction.pxReplaceOptions": {
           "type": "array",
+          "items": {
+            "type": "string"
+          },
           "description": "px replace options, '_AUTO_CALC_' for auto calc, '_VAR_REPLACE_' for var replace",
           "default": [
             "_VAR_REPLACE_",
