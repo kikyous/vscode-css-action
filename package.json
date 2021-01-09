@@ -3,7 +3,7 @@
   "private": false,
   "displayName": "Code Actions For Css",
   "description": "A vscode extension help editing scss/less file with color replace and px convert.",
-  "version": "0.3.3",
+  "version": "1.0.0",
   "publisher": "kikyous",
   "repository": {
     "type": "git",
@@ -22,30 +22,40 @@
     "configuration": {
       "title": "Css Action",
       "properties": {
-        "cssAction.colorVariablesFile": {
+        "cssAction.variablesFile": {
           "type": "string",
-          "description": "color variables file path."
-        },
-        "cssAction.pxSearchRegex": {
-          "type": "string",
-          "description": "px search regex.",
-          "default": "\\b(\\d+(px|rem|em)\\s*)+(?![^(]*\\))"
+          "description": "style variables file path."
         },
         "cssAction.rootFontSize": {
           "type": "integer",
           "description": "root font size for rem calc.",
           "default": 16
         },
+        "cssAction.pxSearchRegex": {
+          "type": "string",
+          "description": "px search regex.",
+          "default": "\\b(\\d+(px|rem|em)\\s*)+(?![^(]*\\))"
+        },
         "cssAction.pxReplaceOptions": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "px replace options, '_AUTO_CALC_' for auto calc, '_VAR_REPLACE_' for var replace",
+          "description": "px replace options, '_REM_RESULT_' for rem calc result based on rootFontSize, '_VAR_NAME_' for var name, '_MATCHED_TEXT_' for origin text",
           "default": [
-            "_VAR_REPLACE_",
-            "_AUTO_CALC_",
-            "px2rem($&)"
+            "<%= _VAR_NAME_ %>",
+            "<%= _REM_RESULT_ %>",
+            "px2rem(<%= _MATCHED_TEXT_ %>)"
+          ]
+        },
+        "cssAction.colorReplaceOptions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "color replace options, '_VAR_NAME_' for var name, '_MATCHED_TEXT_' for origin text",
+          "default": [
+            "<%= _VAR_NAME_ %>"
           ]
         }
       }
@@ -64,11 +74,15 @@
     "watch": "tsc -watch -p ./"
   },
   "devDependencies": {
+    "@types/ejs": "^3.0.5",
     "@types/node": "^12.12.0",
+    "@types/vscode": "^1.32.0",
     "@typescript-eslint/eslint-plugin": "^3.0.2",
     "@typescript-eslint/parser": "^3.0.2",
     "eslint": "^7.1.0",
-    "typescript": "^3.9.4",
-    "@types/vscode": "^1.32.0"
+    "typescript": "^3.9.4"
+  },
+  "dependencies": {
+    "ejs": "^3.1.5"
   }
 }

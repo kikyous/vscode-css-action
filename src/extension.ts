@@ -1,16 +1,19 @@
 import * as vscode from "vscode";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { render } from 'ejs';
 
-enum SizeReplaceOption {
-  autoCalc = "_AUTO_CALC_",
-  varReplace = "_VAR_REPLACE_",
+enum BultinTemplateVar {
+  remResult = "_REM_RESULT_",
+  varName = "_VAR_NAME_",
+  matchedText = "_MATCHED_TEXT_",
 }
-let colorVariablesFilePath: string | undefined;
+let variablesFilePath: string | undefined;
 let variableMapper = new Map<string, Set<string>>();
 let pxSearchRegex: string;
-let pxReplaceOptions: string[];
 let rootFontSize: number;
+let pxReplaceOptions: string[];
+let colorReplaceOptions: string[];
 
 function normalizeSizeValue(str: string) {
   const sizeReg = /\b\d+(px|rem|em)\b/g;
@@ -33,7 +36,7 @@ function normalizeColorValue(str: string) {
 }
 function getVariablesMapper(path: string) {
   const text = readFileSync(path, { encoding: "utf8" });
-  const matches = text.match(/[$@][\w-]+\s*:\s*.+/gi);
+  const matches = text.match(/(?<!\/\/\s*)[$@][\w-]+\s*:\s*.+/gi);
   const varMapper = new Map<string, Set<string>>();
   if (matches) {
     for (let match of matches) {
@@ -49,19 +52,38 @@ function getVariablesMapper(path: string) {
   return varMapper;
 }
 
+const renderVarNamesTpl = (tplString: string, varNames: Array<string>, context: object) => {
+  return varNames.map((varName) => {
+    return render(tplString, { [BultinTemplateVar.varName]: varName, ...context })
+  })
+}
+
+const renderOptions = (optionTpls: string[], varNames: Set<string>, context: object) => {
+  let result: string[] = [];
+  for (const option of optionTpls) {
+    if (option.includes(BultinTemplateVar.varName)) {
+      result = result.concat(renderVarNamesTpl(option, Array.from(varNames), context));
+    } else {
+      result.push(render(option, context));
+    }
+  }
+  return result;
+}
+
 function init(context: vscode.ExtensionContext) {
   const workbenchConfig = vscode.workspace.getConfiguration("cssAction");
-  colorVariablesFilePath = workbenchConfig.get<string>("colorVariablesFile");
+  variablesFilePath = workbenchConfig.get<string>("variablesFile");
   pxSearchRegex = workbenchConfig.get<string>("pxSearchRegex")!;
-  pxReplaceOptions = workbenchConfig.get<string[]>("pxReplaceOptions")!;
   rootFontSize = workbenchConfig.get<number>("rootFontSize")!;
+  pxReplaceOptions = workbenchConfig.get<string[]>("pxReplaceOptions")!;
+  colorReplaceOptions = workbenchConfig.get<string[]>("colorReplaceOptions")!;
 
   context.subscriptions.forEach((s) => s.dispose());
 
-  if (colorVariablesFilePath) {
+  if (variablesFilePath) {
     const fullPath = join(
       vscode.workspace.rootPath || "",
-      colorVariablesFilePath
+      variablesFilePath
     );
 
     variableMapper = getVariablesMapper(fullPath);
@@ -188,31 +210,30 @@ class PxReplacer extends RegexReplacer {
 
   public getReplaceTargets(originText: string): string[] {
     const normalizedOrigin = normalizeSizeValue(originText) || "";
-    const replaces: string[] = [];
-    pxReplaceOptions!.forEach((target) => {
-      if (target === SizeReplaceOption.autoCalc) {
-        replaces.push(this.calcRem(normalizedOrigin));
-      } else if (target === SizeReplaceOption.varReplace) {
-        const varNameFromMapper =
-          variableMapper.get(normalizedOrigin) || new Set();
-        for (let varName of varNameFromMapper) {
-          replaces.push(varName);
-        }
-      } else {
-        replaces.push(originText.replace(this.regex, target));
-      }
-    });
-    return replaces;
+
+    const varNames = variableMapper.get(normalizedOrigin) || new Set()
+    const context = {
+      [BultinTemplateVar.matchedText]: originText,
+      [BultinTemplateVar.remResult]: this.calcRem(normalizedOrigin)
+    }
+    return renderOptions(pxReplaceOptions, varNames, context);
   }
 }
 
 /**
  * Provides code actions for converting hex color string to a color var.
  */
+
+
 class ColorVarReplacer extends RegexReplacer {
   public regex = /#[0-9a-f]{3,8}\b/i;
 
   public getReplaceTargets(originText: string): string[] {
-    return Array.from(variableMapper.get(originText.toLowerCase()) || []);
+    const varNames = variableMapper.get(originText.toLowerCase()) || new Set()
+    const context = {
+      [BultinTemplateVar.matchedText]: originText
+    }
+
+    return renderOptions(colorReplaceOptions, varNames, context);
   }
 }

@@ -2,13 +2,27 @@
 
 A vscode extension help editing scss/less file with color replace and px convert.
 
+## 1.0 breaking changed:
+* use ejs for `colorReplaceOptions` and `pxReplaceOptions` template render.
+* configuration: "cssAction.colorVariablesFile" => "cssAction.variablesFile".
+
+## ejs render context: 
+```js
+{
+  _VAR_NAME_: 'color and size var name defined in variablesFile',
+  _MATCHED_TEXT_: 'origin text matched by regex',
+  _REM_RESULT_: 'rem result converted from px value based on rootFontSize, only in `colorReplaceOptions`'
+}
+```
+
 ## Color Replace
 
 > color replace help replace hex css string to color variable defined in (scss/less) file.
 
 ```json
 {
-  "cssAction.colorVariablesFile": "src/style/variables.scss"
+  "cssAction.variablesFile": "src/style/variables.scss",
+  "cssAction.colorReplaceOptions": ["<%= _VAR_NAME_ %>"]
 }
 ```
 
@@ -21,7 +35,7 @@ A vscode extension help editing scss/less file with color replace and px convert
 ```json
 {
   "cssAction.rootFontSize": 16,
-  "cssAction.pxReplaceOptions": ["px2rem($&)", "_AUTO_CALC_", "_VAR_REPLACE_"]
+  "cssAction.pxReplaceOptions": ["<%= _VAR_NAME_ %>", "<%= _REM_RESULT_ %>", "px2rem(<%= _MATCHED_TEXT_ %>)"]
 }
 ```
 
