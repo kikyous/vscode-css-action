@@ -2,7 +2,7 @@
 
 A vscode extension help editing scss/less file with color replace and px convert.
 
-## 1.0 breaking changed:
+## 1.0 breaking changes:
 * use ejs for `colorReplaceOptions` and `pxReplaceOptions` template render.
 * configuration: "cssAction.colorVariablesFile" => "cssAction.variablesFile".
 
