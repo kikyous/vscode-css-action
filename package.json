@@ -3,7 +3,7 @@
   "private": false,
   "displayName": "Code Actions For Css",
   "description": "A vscode extension help editing scss/less file with color replace and px convert.",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "publisher": "kikyous",
   "repository": {
     "type": "git",
@@ -34,7 +34,7 @@
         "cssAction.pxSearchRegex": {
           "type": "string",
           "description": "px search regex.",
-          "default": "\\b(\\d+(px|rem|em)\\s*)+(?![^(]*\\))"
+          "default": "(-?\\d+(px|rem|em)\\s*)+(?![^(]*\\))"
         },
         "cssAction.pxReplaceOptions": {
           "type": "array",

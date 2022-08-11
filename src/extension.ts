@@ -36,13 +36,17 @@ function normalizeColorValue(str: string) {
 }
 function getVariablesMapper(path: string) {
   const text = readFileSync(path, { encoding: "utf8" });
-  const matches = text.match(/(?<!\/\/\s*)[$@][\w-]+\s*:\s*.+/gi);
+  const matches = text.match(/(?<!\/\/\s*)[$@]?[\w-]+\s*:\s*.+/gi);
   const varMapper = new Map<string, Set<string>>();
   if (matches) {
-    for (let match of matches) {
+    for (const match of matches) {
+      // eslint-disable-next-line prefer-const
       let [varName, varValue] = match.split(/\s*:\s*/);
-      varValue =
-        normalizeSizeValue(varValue) || normalizeColorValue(varValue) || "";
+      varValue = normalizeSizeValue(varValue) || normalizeColorValue(varValue) || "";
+
+      if (varName.startsWith('--')) {
+        varName = `var(${varName})`;
+      }
       if (!varMapper.get(varValue)) {
         varMapper.set(varValue, new Set());
       }
@@ -52,13 +56,13 @@ function getVariablesMapper(path: string) {
   return varMapper;
 }
 
-const renderVarNamesTpl = (tplString: string, varNames: Array<string>, context: object) => {
+const renderVarNamesTpl = (tplString: string, varNames: Array<string>, context: any) => {
   return varNames.map((varName) => {
-    return render(tplString, { [BultinTemplateVar.varName]: varName, ...context })
-  })
-}
+    return render(tplString, { [BultinTemplateVar.varName]: varName, ...context });
+  });
+};
 
-const renderOptions = (optionTpls: string[], varNames: Set<string>, context: object) => {
+const renderOptions = (optionTpls: string[], varNames: Set<string>, context: any) => {
   let result: string[] = [];
   for (const option of optionTpls) {
     if (option.includes(BultinTemplateVar.varName)) {
@@ -68,7 +72,7 @@ const renderOptions = (optionTpls: string[], varNames: Set<string>, context: obj
     }
   }
   return result;
-}
+};
 
 function init(context: vscode.ExtensionContext) {
   const workbenchConfig = vscode.workspace.getConfiguration("cssAction");
@@ -211,11 +215,11 @@ class PxReplacer extends RegexReplacer {
   public getReplaceTargets(originText: string): string[] {
     const normalizedOrigin = normalizeSizeValue(originText) || "";
 
-    const varNames = variableMapper.get(normalizedOrigin) || new Set()
+    const varNames = variableMapper.get(normalizedOrigin) || new Set();
     const context = {
       [BultinTemplateVar.matchedText]: originText,
       [BultinTemplateVar.remResult]: this.calcRem(normalizedOrigin)
-    }
+    };
     return renderOptions(pxReplaceOptions, varNames, context);
   }
 }
@@ -229,10 +233,10 @@ class ColorVarReplacer extends RegexReplacer {
   public regex = /#[0-9a-f]{3,8}\b/i;
 
   public getReplaceTargets(originText: string): string[] {
-    const varNames = variableMapper.get(originText.toLowerCase()) || new Set()
+    const varNames = variableMapper.get(originText.toLowerCase()) || new Set();
     const context = {
       [BultinTemplateVar.matchedText]: originText
-    }
+    };
 
     return renderOptions(colorReplaceOptions, varNames, context);
   }
