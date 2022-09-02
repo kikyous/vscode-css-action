@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { readFileSync } from "fs";
 import { join } from "path";
 import { render } from 'ejs';
+import tinycolor from 'tinycolor2';
 
 enum BultinTemplateVar {
   remResult = "_REM_RESULT_",
@@ -10,7 +11,6 @@ enum BultinTemplateVar {
 }
 let variablesFilePath: string | undefined;
 let variableMapper = new Map<string, Set<string>>();
-let pxSearchRegex: string;
 let rootFontSize: number;
 let pxReplaceOptions: string[];
 let colorReplaceOptions: string[];
@@ -26,22 +26,21 @@ function normalizeSizeValue(str: string) {
 }
 
 function normalizeColorValue(str: string) {
-  const colorReg = /#[0-9a-f]{3,8}\b/;
-  const result = str.toLowerCase().match(colorReg);
-  if (result) {
-    return result[0];
+  if (str) {
+    const color = tinycolor(str);
+    return color.isValid() ? tinycolor(str).toHex8String() : null;
   } else {
     return null;
   }
 }
+
 function getVariablesMapper(path: string) {
   const text = readFileSync(path, { encoding: "utf8" });
-  const matches = text.match(/(?<!\/\/\s*)[$@]?[\w-]+\s*:\s*.+/gi);
+  const matches = text.matchAll(/(?<!\/\/\s*)((?:\$|@|--)[\w-]+)\s*:[ \t]*([^;\n]+)/gi);
   const varMapper = new Map<string, Set<string>>();
   if (matches) {
     for (const match of matches) {
-      // eslint-disable-next-line prefer-const
-      let [varName, varValue] = match.split(/\s*:\s*/);
+      let [varName, varValue] = [match[1], match[2]];
       varValue = normalizeSizeValue(varValue) || normalizeColorValue(varValue) || "";
 
       if (varName.startsWith('--')) {
@@ -77,7 +76,6 @@ const renderOptions = (optionTpls: string[], varNames: Set<string>, context: any
 function init(context: vscode.ExtensionContext) {
   const workbenchConfig = vscode.workspace.getConfiguration("cssAction");
   variablesFilePath = workbenchConfig.get<string>("variablesFile");
-  pxSearchRegex = workbenchConfig.get<string>("pxSearchRegex")!;
   rootFontSize = workbenchConfig.get<number>("rootFontSize")!;
   pxReplaceOptions = workbenchConfig.get<string[]>("pxReplaceOptions")!;
   colorReplaceOptions = workbenchConfig.get<string[]>("colorReplaceOptions")!;
@@ -86,7 +84,7 @@ function init(context: vscode.ExtensionContext) {
 
   if (variablesFilePath) {
     const fullPath = join(
-      vscode.workspace.rootPath || "",
+      vscode.workspace.workspaceFolders![0].uri.fsPath || "",
       variablesFilePath
     );
 
@@ -103,17 +101,15 @@ function init(context: vscode.ExtensionContext) {
     );
   }
 
-  if (pxSearchRegex) {
-    context.subscriptions.push(
-      vscode.languages.registerCodeActionsProvider(
-        PxReplacer.documentSelectors,
-        new PxReplacer(),
-        {
-          providedCodeActionKinds: PxReplacer.providedCodeActionKinds,
-        }
-      )
-    );
-  }
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider(
+      PxReplacer.documentSelectors,
+      new PxReplacer(),
+      {
+        providedCodeActionKinds: PxReplacer.providedCodeActionKinds,
+      }
+    )
+  );
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -125,9 +121,12 @@ abstract class RegexReplacer implements vscode.CodeActionProvider {
   public abstract regex: RegExp;
 
   public static documentSelectors = [
+    { language: "css" },
     { language: "scss" },
     { language: "less" },
     { language: "vue" },
+    { language: "jsx" },
+    { language: "tsx" },
   ];
 
   public static readonly providedCodeActionKinds = [
@@ -194,7 +193,7 @@ abstract class RegexReplacer implements vscode.CodeActionProvider {
  * Provides code actions for converting px.
  */
 class PxReplacer extends RegexReplacer {
-  public regex = new RegExp(pxSearchRegex!, "i");
+  public regex = new RegExp("(-?\\d+(px|rem|em)\\s*)+(?![^(]*\\))", 'i');
 
   private calcRem(originText: string): string {
     return originText
@@ -229,11 +228,21 @@ class PxReplacer extends RegexReplacer {
  */
 
 
+const colorRegexParts = [
+  '(#[0-9a-f]{3,8}\\b)',
+	'(rgb|hsl)a?[^)]*\\)',
+  `(\\b(${Object.keys(tinycolor.names).join('|')})\\b)`
+];
+
+const colorRegex = new RegExp(colorRegexParts.join("|"), 'i');
+
+
 class ColorVarReplacer extends RegexReplacer {
-  public regex = /#[0-9a-f]{3,8}\b/i;
+  public regex = colorRegex;
 
   public getReplaceTargets(originText: string): string[] {
-    const varNames = variableMapper.get(originText.toLowerCase()) || new Set();
+    const colorStr = tinycolor(originText).toHex8String();
+    const varNames = variableMapper.get(colorStr) || new Set();
     const context = {
       [BultinTemplateVar.matchedText]: originText
     };
