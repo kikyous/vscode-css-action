@@ -41,7 +41,7 @@ function getVariablesMapper(path: string) {
   if (matches) {
     for (const match of matches) {
       let [varName, varValue] = [match[1], match[2]];
-      varValue = normalizeSizeValue(varValue) || normalizeColorValue(varValue) || "";
+      varValue = normalizeSizeValue(varValue) || normalizeColorValue(varValue) || varValue || "";
 
       if (varName.startsWith('--')) {
         varName = `var(${varName})`;
@@ -72,6 +72,34 @@ const renderOptions = (optionTpls: string[], varNames: Set<string>, context: any
   }
   return result;
 };
+
+export async function showQuickPick() {
+  const quickPick = vscode.window.createQuickPick();
+  quickPick.matchOnDescription = true;
+  quickPick.ignoreFocusOut = true;
+  quickPick.placeholder = 'Search var name and value';
+  const options: vscode.QuickPickItem[] = [];
+  variableMapper.forEach((values, key) => {
+    options.push(
+      ...Array.from(values).map(i => ({ label: i, description: key }))
+    );
+  });
+
+  quickPick.items = options;
+  quickPick.onDidHide(() => quickPick.dispose());
+  quickPick.show();
+
+  quickPick.onDidChangeSelection((i) => {
+    quickPick.hide();
+    const selected = i[0];
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      return;
+    }
+    const text = selected.label;
+    editor.edit(textEditorEdit => editor.selections.forEach(selection => textEditorEdit.replace(selection, text)));
+  });
+}
 
 function init(context: vscode.ExtensionContext) {
   const workbenchConfig = vscode.workspace.getConfiguration("cssAction");
@@ -110,6 +138,8 @@ function init(context: vscode.ExtensionContext) {
       }
     )
   );
+
+  context.subscriptions.push(vscode.commands.registerCommand('cssAction.pickVariable', showQuickPick));
 }
 
 export function activate(context: vscode.ExtensionContext) {
@@ -230,7 +260,7 @@ class PxReplacer extends RegexReplacer {
 
 const colorRegexParts = [
   '(#[0-9a-f]{3,8}\\b)',
-	'(rgb|hsl)a?[^)]*\\)',
+  '(rgb|hsl)a?[^)]*\\)',
   `(\\b(${Object.keys(tinycolor.names).join('|')})\\b)`
 ];
 
